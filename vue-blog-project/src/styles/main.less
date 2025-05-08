@@ -1,0 +1,45 @@
+/* 在App.vue的<style>部分 */
+@import 'swiper/swiper-bundle.css';
+@import 'element-plus/dist/index.css';
+@import './theme-dark.less';
+@import './theme-light.less';
+
+html {
+  font-size: 16px; /* 默认大小 */
+}
+html,
+body {
+  background-color: #f5f6f7;
+}
+* {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-decoration: none;
+}
+.nut-popup--left {
+  background-color: rgba(23, 22, 22, 0.6) !important; /* 背景透明度为 70% */
+}
+#app {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+@media (max-width: 768px) {
+  html {
+    font-size: 14px; /* 小屏幕字体大小 */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  html {
+    font-size: 16px; /* 中等屏幕字体大小 */
+  }
+}
+
+@media (min-width: 1025px) {
+  html {
+    font-size: 18px; /* 大屏幕字体大小 */
+  }
+}
