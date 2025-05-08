@@ -12,16 +12,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Sync files via Rsync
-      uses: easingthemes/ssh-deploy@v4
+    - name: Sync files via SSH
+      uses: appleboy/ssh-action@v1
       with:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        KEY_NAME: "github_actions_key"  # 添加此行，自定义密钥文件名
-        REMOTE_HOST: ${{ secrets.SERVER_IP }}
-        REMOTE_USER: ${{ secrets.SSH_USERNAME }}
-        REMOTE_PORT: ${{ secrets.SSH_PORT }}
-        SOURCE: "./"
-        TARGET: "/www/wwwroot/default"
-        ARGS: "-avz --delete"
-        DEBUG: "true"
-        SSH_DEBUG_ARGS: "-vvv"
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          rsync -avz --delete -e "ssh -i $HOME/.ssh/github_actions_key" ./ ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default
