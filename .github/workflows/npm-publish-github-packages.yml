@@ -19,6 +19,9 @@ jobs:
         REMOTE_HOST: ${{ secrets.SERVER_IP }}
         REMOTE_USER: ${{ secrets.SSH_USERNAME }}
         REMOTE_PORT: ${{ secrets.SSH_PORT }}
-        SOURCE: "./"                # 同步当前仓库根目录所有文件
-        TARGET: "/www/wwwroot/default"  # 你的服务器目标目录
-        ARGS: "-avz --delete"       # 同步参数（按需调整）
+        SOURCE: "./"
+        TARGET: "/www/wwwroot/default"
+        ARGS: "-avz --delete"
+        # 添加以下参数启用详细日志
+        DEBUG: "true"
+        SSH_DEBUG_ARGS: "-vvv"  # 输出 SSH 详细日志
