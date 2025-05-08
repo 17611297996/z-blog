@@ -20,5 +20,5 @@ jobs:
         REMOTE_USER: ${{ secrets.SSH_USERNAME }}
         REMOTE_PORT: ${{ secrets.SSH_PORT }}
         SOURCE: "./"            # 同步当前目录所有文件
-        TARGET: "/www/wwwroot/default"  # 服务器目标目录
+        TARGET: "/var/www/my-project"  # 服务器目标目录
         ARGS: "-avz --delete"   # 参数说明：归档模式、显示进度、压缩、删除目标多余文件
