@@ -10,7 +10,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # 拉取仓库代码到工作目录
+      uses: actions/checkout@v4
 
     - name: Sync all files via Rsync
       uses: easingthemes/ssh-deploy@v4
@@ -19,6 +19,6 @@ jobs:
         REMOTE_HOST: ${{ secrets.SERVER_IP }}
         REMOTE_USER: ${{ secrets.SSH_USERNAME }}
         REMOTE_PORT: ${{ secrets.SSH_PORT }}
-        SOURCE: "./"            # 同步当前目录所有文件
-        TARGET: "/var/www/my-project"  # 服务器目标目录
-        ARGS: "-avz --delete"   # 参数说明：归档模式、显示进度、压缩、删除目标多余文件
+        SOURCE: "./"                # 同步当前仓库根目录所有文件
+        TARGET: "/www/wwwroot/default"  # 你的服务器目标目录
+        ARGS: "-avz --delete"       # 同步参数（按需调整）
