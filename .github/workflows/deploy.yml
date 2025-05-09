@@ -1,4 +1,4 @@
-name: 全栈项目自动部署（含 pnpm 修复）
+name: Deploy to Server
 
 on:
   push:
@@ -7,71 +7,30 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: "--max_old_space_size=4096"  # 防止内存溢出
 
     steps:
-    # ███████ 初始化代码仓库 ███████████████████
-    - name: 检出代码
-      uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4  # 正确拉取代码到 Runner 的 $GITHUB_WORKSPACE 目录
 
-    # ███████ Node.js 环境配置 █████████████████
-    - name: 安装 Node.js 18
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18.x
-        cache: 'pnpm'  # 启用缓存加速
-        cache-dependency-path: '**/pnpm-lock.yaml'
+    - name: Debug - List repository files
+      run: ls -la $GITHUB_WORKSPACE  # 确认仓库文件存在
 
-    # ███████ pnpm 修复核心步骤 ███████████████
-    - name: 强制启用 Corepack
+    - name: Setup SSH Environment
       run: |
-        # 清理旧版本残留
-        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
-        # 激活 Node.js 自带包管理器
-        corepack enable --install-directory=/usr/local/bin
-        echo "Corepack 已激活"
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        # 注入 SSH 私钥 (必须为 OpenSSH 格式，无多余换行符)
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
+        chmod 600 ~/.ssh/github_actions_key
+        # 添加服务器指纹到 known_hosts (避免首次连接确认)
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: 安装 pnpm（双重保障）
+    - name: Install Rsync
+      run: sudo apt-get update && sudo apt-get install -y rsync  # 确保 Runner 有 rsync 工具
+
+    - name: Sync Files via Rsync
       run: |
-        # 方式1: 通过 Corepack 安装
-        corepack prepare pnpm@8 --activate
-        # 方式2: 通过 npm 全局安装（国内镜像）
-        npm install -g pnpm@8 --registry=https://registry.npmmirror.com
-        # 确保路径写入系统变量
-        echo "全局路径: $(npm root -g)/bin" >> $GITHUB_PATH
-
-    # ███████ 验证修复结果 ███████████████████
-    - name: 验证环境
-      run: |
-        echo "### 关键路径检查 ###"
-        which node    # 应输出 /opt/hostedtoolcache/node/...
-        which pnpm    # 应输出 /usr/local/bin/pnpm
-        echo "### 版本信息 ###"
-        node -v
-        pnpm -v       # 应输出版本号如 8.x.x
-        echo "### PATH 变量 ###"
-        echo $PATH | tr ':' '\n'
-
-    # ███████ 前端项目构建示例 ███████████████
-    - name: 安装前端依赖
-      working-directory: ./your-project-path  # 修改为你的项目路径
-      run: |
-        pnpm install --frozen-lockfile
-        pnpm store prune  # 清理无效缓存
-
-    - name: 构建生产环境代码
-      working-directory: ./your-project-path
-      run: pnpm build
-
-    # ███████ 后端部署示例（按需添加） ████████
-    # - name: 部署到服务器
-    #   uses: appleboy/ssh-action@master
-    #   with:
-    #     host: ${{ secrets.SERVER_IP }}
-    #     key: ${{ secrets.SERVER_SSH_KEY }}
-    #     script: |
-    #       cd /var/www/your-project
-    #       git pull
-    #       pnpm install
-    #       pm2 restart all
+        rsync -avz --progress --delete \
+          -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
+          $GITHUB_WORKSPACE/ \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
