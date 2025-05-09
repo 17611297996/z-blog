@@ -1,60 +1,27 @@
-name: Deploy Fullstack
-
-on:
-  push:
-    branches: [ "main" ]
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    # 代码拉取 ----------------------------------------------------------------
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # Node.js 环境配置 --------------------------------------------------------
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: 18  # 根据项目需求调整版本号
+        node-version: 18
         cache: 'npm'
+        cache-dependency-path: './vue-blog-project/package-lock.json'
 
-    # 前端构建阶段 ------------------------------------------------------------
-    - name: Install and Build Frontend
-      working-directory: ./vue-blog-project  # 定位到前端目录
+    - name: Validate Lock Files
+      working-directory: ./vue-blog-project
       run: |
-        npm install --legacy-peer-deps       # 安装依赖（适配旧项目可加 --legacy-peer-deps）
-        npm run build                         # 执行构建命令
-        echo "构建完成，生成文件位置：" 
-        ls -la dist                          # 验证构建产物
+        echo "当前目录：$(pwd)"
+        ls -la  # 列出文件确认锁文件存在
 
-    # 服务器同步准备 ----------------------------------------------------------
-    - name: Setup SSH Environment
-      run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
-        chmod 600 ~/.ssh/github_actions_key
-        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+    - name: Install Dependencies
+      working-directory: ./vue-blog-project
+      run: npm ci  # 使用 package-lock.json 精确安装
 
-    - name: Install Rsync
-      run: sudo apt-get update && sudo apt-get install -y rsync
-
-    # 文件同步阶段 ------------------------------------------------------------
-    - name: Sync Files via Rsync
-      run: |
-        rsync -avz --progress --delete \
-          --exclude=node_modules \          # 排除所有 node_modules 目录
-          --exclude=.git \                  # 排除版本控制目录
-          --exclude=.github \               # 排除 CI/CD 配置目录
-          -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-          $GITHUB_WORKSPACE/ \
-          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
-
-    # 可选：服务器端后续操作 --------------------------------------------------
-    - name: Restart Services (Optional)
-      run: |
-        ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }} \
-          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
-          "pm2 restart all"  # 示例：重启 Node.js 服务
+    - name: Build Project
+      working-directory: ./vue-blog-project
+      run: npm run build
