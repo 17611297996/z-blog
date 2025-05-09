@@ -1,4 +1,4 @@
-name: Deploy to Server
+name: 部署到服务器
 
 on:
   push:
@@ -9,26 +9,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: 检出代码
       uses: actions/checkout@v4
 
-    - name: Install pnpm & Dependencies
-      working-directory: vue-blog-project
-      run: |
-        npm install -g pnpm
-        pnpm install
-        rm -rf node_modules/.vite  # 清理缓存
-        pnpm run build
+    - name: 调试-列出仓库文件
+      run: ls -la $GITHUB_WORKSPACE
 
-    - name: Check Build Output
-      run: |
-        ls -la vue-blog-project/dist
-        if [ -z "$(ls -A vue-blog-project/dist)" ]; then
-          echo "Error: dist directory is empty!"
-          exit 1
-        fi
-
-    - name: Setup SSH Environment
+    - name: 配置SSH环境
       run: |
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
@@ -36,10 +23,29 @@ jobs:
         chmod 600 ~/.ssh/github_actions_key
         ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Install Rsync
+    - name: 安装Rsync工具
       run: sudo apt-get update && sudo apt-get install -y rsync
 
-    - name: Sync Build Files
+    - name: 构建项目（适配pnpm/npm）
+      working-directory: vue-blog-project
+      run: |
+        npm install -g pnpm
+        pnpm install
+        rm -rf node_modules/.vite
+        pnpm run build
+
+    - name: 调试-显示构建产物
+      run: ls -la vue-blog-project/dist
+
+    - name: 设置服务器同步参数
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
+        chmod 600 ~/.ssh/github_actions_key
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: 同步构建文件到服务器
       run: |
         rsync -avz --progress --delete \
           --exclude='node_modules' \
