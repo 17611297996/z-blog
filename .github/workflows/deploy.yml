@@ -18,7 +18,7 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: 18
-        cache: 'npm'
+        cache: 'pnpm'
         cache-dependency-path: './vue-blog-project/package.json'  # 明确子目录缓存路径:ml-citation{ref="5,8" data="citationList"}
 
     # - name: 验证依赖锁文件状态
@@ -33,7 +33,7 @@ jobs:
     # ██ 前端依赖安装与构建 █████████████████████████████████   
     - name: 安装前端依赖
       working-directory: ./vue-blog-project
-      run: npm ci --legacy-peer-deps  # 严格依据 lockfile 安装:ml-citation{ref="4,5" data="citationList"}
+      run: pnpm ci --legacy-peer-deps  # 严格依据 lockfile 安装:ml-citation{ref="4,5" data="citationList"}
 
     - name: 编译生产环境代码
       working-directory: ./vue-blog-project
