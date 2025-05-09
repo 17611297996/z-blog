@@ -10,43 +10,24 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # 拉取代码到 $GITHUB_WORKSPACE
+      uses: actions/checkout@v4
 
-    - name: Debug - List repository files
+    - name: Setup SSH
       run: |
-        echo "仓库文件列表："
-        ls -la $GITHUB_WORKSPACE  # 确认仓库文件已拉取
-
-    - name: Set up SSH Key
-      run: |
-        # 创建 .ssh 目录并设置权限
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        # 将私钥写入文件
+        # 注入私钥并设置权限
         echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
         chmod 600 ~/.ssh/github_actions_key
-        # 添加服务器到 known_hosts
-        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
+        # 添加服务器指纹到已知主机
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Sync files to Server
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.SERVER_IP }}
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SSH_PORT }}
-        script: |
-          echo "开始同步文件到服务器..."
-          # 确保目标目录存在
-          ssh -i "$HOME/.ssh/github_actions_key" -p ${{ secrets.SSH_PORT }} \
-            ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
-            "mkdir -p /www/wwwroot/default"
-          
-          # 正确的 rsync 方向：本地仓库 -> 服务器
-          rsync -avz --progress --delete \
-            -e "ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }}" \
-            "$GITHUB_WORKSPACE/" \
-            ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
-          
-          echo "同步完成！"
+    - name: Install Rsync
+      run: sudo apt-get install -y rsync
+
+    - name: Sync Files
+      run: |
+        rsync -avz --progress --delete \
+          -e "ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }}" \
+          $GITHUB_WORKSPACE/ \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
