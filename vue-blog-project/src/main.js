@@ -10,6 +10,7 @@ import NutUI from "@nutui/nutui";
 import { IconFont } from '@nutui/icons-vue'
 import "@nutui/nutui/dist/style.css";
 const app = createApp(App)
+const aa = 1; //测试
 app.use(createPinia())
 app.use(GlobalVueApiPlugin);
 app.use(router)
