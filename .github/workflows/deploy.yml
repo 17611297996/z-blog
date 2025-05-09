@@ -1,86 +1,61 @@
-name: 全栈部署（pnpm 修复终极版）
-
-on:
-  push:
-    branches: [ "main" ]
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      PNPM_VERSION: "8.15.6"  # 明确指定版本
+      PNPM_VERSION: "8.15.6"  # 指定精确版本
 
     steps:
-    # ███████ 第一阶段：环境初始化 ████████████████
-    - name: 检出代码
-      uses: actions/checkout@v4
-
-    # ███████ 第二阶段：强制重置 Node.js 环境 ███████
-    - name: 清除 Node.js 残留
+    # ███████ 强制重置 Node 环境 ███████████████
+    - name: 清除旧版 Node 残留
       run: |
-        sudo rm -rf /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
-        sudo rm -rf /opt/hostedtoolcache/node_modules/.pnpm 2>/dev/null || true
-
-    - name: 安装 Node.js 20 (LTS)
+        # 移除所有可能的残留链接
+        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null
+        # 清除可能的缓存干扰
+        sudo npm cache clean -f
+        
+    # ███████ Node.js 安装强化 ████████████████
+    - name: 安装 Node.js 20 (强制模式)
       uses: actions/setup-node@v3
       with:
         node-version: 20.x
         cache: 'pnpm'
         cache-dependency-path: '**/pnpm-lock.yaml'
+        check-latest: true  # 强制检查最新版本
 
-    # ███████ 第三阶段：精确安装 pnpm █████████████
-    - name: 安装 pnpm (官方推荐方式)
+    # ███████ pnpm 安装紧急修复 ███████████████
+    - name: 核心修复 - pnpm 安装
       run: |
         # 强制激活 Corepack
         sudo corepack enable --install-directory=/usr/local/bin
         # 精确安装指定版本
         sudo corepack prepare pnpm@${PNPM_VERSION} --activate
-        # 验证安装结果
-        echo "pnpm 路径: $(which pnpm)"
-        ls -l $(which pnpm)
-        chmod +x $(which pnpm)  # 确保可执行权限
+        # 双重安装保障
+        npm install -g pnpm@${PNPM_VERSION} --registry=https://registry.npmmirror.com
+        # 路径显式注入
+        echo "全局路径: $(npm root -g)/bin" >> $GITHUB_PATH
+        # 符号链接保障
+        sudo ln -sf "$(npm root -g)/bin/pnpm" /usr/local/bin/pnpm
+        # 权限修复
+        sudo chmod 755 $(npm root -g)/bin/pnpm
 
-    - name: 双重路径保障
-      run: |
-        # 获取 npm 全局安装路径
-        NPM_GLOBAL_BIN="$(npm root -g)/bin"
-        # 写入 GitHub Actions 路径
-        echo "$NPM_GLOBAL_BIN" >> $GITHUB_PATH
-        # 手动构建符号链接
-        sudo ln -sf "$NPM_GLOBAL_BIN/pnpm" /usr/local/bin/pnpm
-        # 最终验证
-        echo "最终路径检查:"
-        which pnpm
-
-    # ███████ 第四阶段：环境深度验证 █████████████
-    - name: 系统级诊断
+    # ███████ 环境验证 ███████████████████████
+    - name: 深度环境诊断
       run: |
         echo "===== 关键诊断信息 ====="
+        # 路径分解
         echo "PATH 分解:"
         echo "$PATH" | tr ':' '\n'
-        echo "pnpm 物理路径:"
+        # 物理路径追踪
+        echo "pnpm 真实路径:"
         realpath $(which pnpm)
+        # 版本验证
+        echo "pnpm 版本:"
+        pnpm -v
+        # 权限检查
         echo "文件权限:"
         ls -l $(which pnpm)
-        echo "版本信息:"
-        pnpm -v
+        # 全局路径验证
+        echo "全局模块路径:"
+        npm root -g
 
-    # ███████ 第五阶段：示例前端构建 █████████████
-    - name: 安装前端依赖
-      working-directory: ./vue-blog-project
-      run: |
-        pnpm install --frozen-lockfile
-        pnpm store path  # 显示存储路径
-
-    - name: 执行构建
-      working-directory: ./vue-blog-project
-      run: pnpm build
-
-    # ███████ 第六阶段：部署 ███████████████████
-    - name: 同步构建产物
-      run: |
-        rsync -avz --delete \
-          --exclude='node_modules/' \
-          --exclude='.git/' \
-          ./vue-blog-project/dist/ \
-          ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/www/wwwroot/
+    # ███████ 后续步骤... ███████████████████
