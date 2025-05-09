@@ -1,4 +1,4 @@
-name: Deploy to Server
+name: 全栈部署（修复 pnpm 路径问题）
 
 on:
   push:
@@ -9,54 +9,71 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # ███████ 代码检出与初始化 ██████████████████
-    - name: Checkout code
+    # ███████ 初始化代码仓库 ███████████████████
+    - name: 检出代码
       uses: actions/checkout@v4
 
     # ███████ Node.js 环境配置 █████████████████
-    - name: Setup Node.js 20
+    - name: 安装 Node.js 20
       uses: actions/setup-node@v3
       with:
         node-version: 20.x
         cache: 'pnpm'
         cache-dependency-path: '**/pnpm-lock.yaml'
 
-    # ███████ pnpm 环境修复 ████████████████████
-    - name: Enable Corepack
+    # ███████ 核武器级 pnpm 修复 ███████████████
+    - name: 彻底重置 pnpm 环境
       run: |
-        corepack enable
-        corepack prepare pnpm@latest --activate
+        # 清除旧版本残留
+        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
+        # 强制刷新 Corepack
+        corepack disable && corepack enable
+        # 激活最新 pnpm 并指定安装路径
+        corepack prepare pnpm@latest --activate --install-directory=/usr/local/bin
 
-    # ███████ 前端构建阶段 ████████████████████
-    - name: Install frontend dependencies
+    - name: 双重安装保障
+      run: |
+        # 方式1: 通过 Corepack 安装
+        corepack prepare pnpm@8 --activate
+        # 方式2: 通过 npm 全局安装（国内镜像加速）
+        npm install -g pnpm@8 --registry=https://registry.npmmirror.com
+        # 显式添加全局路径到 PATH
+        echo "全局 bin 路径: $(npm root -g)/bin" >> $GITHUB_PATH
+        # 验证路径
+        ls -l $(npm root -g)/bin/pnpm
+
+    # ███████ 环境验证 ███████████████████████
+    - name: 系统级环境验证
+      run: |
+        echo "### PATH 变量分解 ###"
+        echo "$PATH" | tr ':' '\n'
+        echo "### pnpm 可执行文件位置 ###"
+        which pnpm
+        echo "### 文件权限检查 ###"
+        ls -l $(which pnpm)
+        echo "### 版本验证 ###"
+        pnpm -v
+
+    # ███████ 前端项目构建 ███████████████████
+    - name: 安装依赖
       working-directory: ./vue-blog-project
-      run: |
-        pnpm install --frozen-lockfile
-        pnpm store prune
+      run: pnpm install --frozen-lockfile
 
-    - name: Build production assets
+    - name: 构建生产包
       working-directory: ./vue-blog-project
       run: pnpm build
 
-    # ███████ 服务器部署阶段 ██████████████████
-    - name: Setup SSH Environment
+    # ███████ 部署到服务器 ███████████████████
+    - name: 配置 SSH 连接
       run: |
         mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
-        chmod 600 ~/.ssh/github_actions_key
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
         ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Install Rsync
-      run: sudo apt-get update && sudo apt-get install -y rsync
-
-    - name: Deploy with Rsync
+    - name: 同步构建产物
       run: |
         rsync -avz --progress --delete \
-          -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-          --exclude='node_modules/' \
-          --exclude='.git/' \
-          --exclude='.github/' \
-          --exclude='.env*' \
+          -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }}" \
           ./vue-blog-project/dist/ \
           ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
