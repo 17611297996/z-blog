@@ -1,44 +1,50 @@
-name: Z-Blog 全栈项目自动化部署
+name: Robust Deployment
 
-on:
-  push:
-    branches: [ "main" ]
+on: [push]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max_old_space_size=4096"
 
     steps:
     - uses: actions/checkout@v4
 
-    # Node.js 环境配置████████████████████████
-    - name: 配置 Node.js
+    # 关键修复步骤 ████████████████████████████
+    - name: 预装基础设施
+      run: |
+        # 解决依赖关系问题
+        sudo apt-get update && sudo apt-get install -y build-essential python3
+        # 核武器级清理残留文件
+        rm -rf node_modules */node_modules
+
+    - name: 配置 Node.js 18 环境
       uses: actions/setup-node@v3
       with:
         node-version: 18
         cache: 'pnpm'
-        cache-dependency-path: './vue-blog-project/pnpm-lock.yaml'
+        cache-dependency-path: '**/pnpm-lock.yaml'
 
-    # 包管理器初始化████████████████████████
-    - name: 启用 Corepack
-      run: corepack enable
-
-    - name: 强制安装 pnpm
+    - name: 激活核心包管理器
       run: |
-        npm install -g pnpm@8 --registry=https://registry.npmmirror.com
-        echo "全局路径: $(npm root -g)"  # 验证安装位置
+        corepack enable
+        corepack prepare pnpm@8 --activate
 
-    # 前端构建流程██████████████████████████
-    - name: 生成锁文件
-      working-directory: ./vue-blog-project
-      run: pnpm install --lockfile
+    - name: 镜像加速（中国大陆优化版）
+      run: |
+        pnpm config set registry https://registry.npmmirror.com
+        pnpm config set store-dir ~/.pnpm-store
+        pnpm config set strict-peer-dependencies false
 
-    - name: 安装依赖
+    - name: 安装前端依赖（严格模式）
       working-directory: ./vue-blog-project
-      run: pnpm install --frozen-lockfile
+      run: |
+        pnpm install --frozen-lockfile --prefer-offline
+        pnpm store prune  # 清理无效缓存
 
-    - name: 编译生产代码
+    - name: 编译生产环境代码
       working-directory: ./vue-blog-project
-      run: pnpm build
+      run: pnpm build --modern
 
     # 后续部署步骤保持不变...
