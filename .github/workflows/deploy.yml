@@ -10,24 +10,27 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # 正确拉取代码到 Runner 的 $GITHUB_WORKSPACE 目录
 
-    - name: Setup SSH
+    - name: Debug - List repository files
+      run: ls -la $GITHUB_WORKSPACE  # 确认仓库文件存在
+
+    - name: Setup SSH Environment
       run: |
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        # 注入私钥并设置权限
+        # 注入 SSH 私钥 (必须为 OpenSSH 格式，无多余换行符)
         echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
         chmod 600 ~/.ssh/github_actions_key
-        # 添加服务器指纹到已知主机
-        ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+        # 添加服务器指纹到 known_hosts (避免首次连接确认)
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
     - name: Install Rsync
-      run: sudo apt-get install -y rsync
+      run: sudo apt-get update && sudo apt-get install -y rsync  # 确保 Runner 有 rsync 工具
 
-    - name: Sync Files
+    - name: Sync Files via Rsync
       run: |
         rsync -avz --progress --delete \
-          -e "ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }}" \
+          -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
           $GITHUB_WORKSPACE/ \
           ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
