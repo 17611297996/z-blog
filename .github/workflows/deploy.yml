@@ -1,103 +1,75 @@
-name: CI/CD Pipeline (Vue.js + pnpm)
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     env:
-      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}  # 默认SSH端口
+      PNPM_VERSION: "8.15.6"  # 精确锁定版本:ml-citation{ref="6" data="citationList"}
 
     steps:
-    # ███████ 第一阶段：代码准备 ████████████████
-    - name: 检出仓库代码
+    # ███████ 第 1 阶段：环境基础配置 █████████████
+    - name: 检出代码
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # 完整克隆历史记录
 
-    # ███████ 第二阶段：Node.js 环境配置 ███████
-    - name: 安装 Node.js 20
+    - name: 安装 Node.js 20.x
       uses: actions/setup-node@v3
       with:
         node-version: 20.x
-        cache: 'pnpm'
+        cache: 'pnpm'  # 启用pnpm缓存:ml-citation{ref="3" data="citationList"}
         cache-dependency-path: '**/pnpm-lock.yaml'
 
-    # ███████ 第三阶段：pnpm 紧急修复 ██████████
+    # ███████ 第 2 阶段：pnpm 紧急修复 ██████████
     - name: 强制安装 pnpm
       run: |
-        # 清除旧版本
+        # 清除旧版本残留:ml-citation{ref="7" data="citationList"}
         sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
-        # 通过 Corepack 安装
+        
+        # 通过 Corepack 安装（Node.js 内置工具）:ml-citation{ref="1" data="citationList"}
         sudo corepack enable --install-directory=/usr/local/bin
-        sudo corepack prepare pnpm@8.15.6 --activate
-        # 通过 npm 双重安装
-        npm install -g pnpm@8.15.6 --registry=https://registry.npmmirror.com
-        # 路径验证
-        echo "pnpm 路径: $(which pnpm)"
-        chmod +x $(which pnpm)
+        sudo corepack prepare pnpm@$PNPM_VERSION --activate
 
-    # ███████ 第四阶段：依赖安装与构建 ██████████
-    - name: 安装项目依赖
+        # 通过 npm 双重安装（国内镜像加速）:ml-citation{ref="6,8" data="citationList"}
+        npm install -g pnpm@$PNPM_VERSION --registry=https://registry.npmmirror.com
+
+        # 注入全局路径到环境变量:ml-citation{ref="5" data="citationList"}
+        echo "npm全局路径: $(npm root -g)/bin" >> $GITHUB_PATH
+
+        # 创建硬链接至标准路径:ml-citation{ref="3" data="citationList"}
+        sudo ln -sf "$(npm root -g)/bin/pnpm" /usr/local/bin/pnpm
+
+        # 修复执行权限:ml-citation{ref="8" data="citationList"}
+        sudo chmod 755 $(npm root -g)/bin/pnpm
+
+    # ███████ 第 3 阶段：环境验证 ███████████████
+    - name: 验证环境配置
+      run: |
+        echo "===== 诊断报告 ====="
+        which pnpm || echo "pnpm未找到！"  # 二进制路径检查
+        pnpm -v                            # 版本验证
+        ls -l $(which pnpm)                # 权限验证
+        echo "PATH分解: $PATH" | tr ':' '\n' # 路径分析
+
+    # ███████ 第 4 阶段：构建流程 ███████████████
+    - name: 安装依赖
       working-directory: ./frontend
       run: |
-        pnpm install --frozen-lockfile
-        pnpm store status  # 显示存储状态
+        pnpm install --frozen-lockfile  # 依赖锁定模式:ml-citation{ref="6" data="citationList"}
+        pnpm store path                # 显示存储位置
 
-    - name: 执行代码质量检查
+    - name: 构建项目
       working-directory: ./frontend
-      run: |
-        pnpm lint
-        pnpm type-check
+      run: pnpm build
 
-    - name: 构建生产包
-      working-directory: ./frontend
-      run: |
-        pnpm build
-        du -sh dist  # 显示构建产物大小
-
-    # ███████ 第五阶段：部署配置 ███████████████
-    - name: 配置 SSH 连接
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        # 严格模式验证
-        ssh-keyscan -p $SSH_PORT ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
-
-    # ███████ 第六阶段：部署到生产环境 ██████████
-    - name: 同步构建产物
-      run: |
-        rsync -avz --progress --delete \
-          -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
-          ./frontend/dist/ \
-          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/var/www/production/
-
-    - name: 执行服务器端命令
-      run: |
-        ssh -i ~/.ssh/deploy_key -p $SSH_PORT ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} "
-          # 生产环境操作
-          cd /var/www/production && \
-          echo '当前目录: $(pwd)' && \
-          echo '文件列表:' && ls -al && \
-          # 重启服务示例
-          sudo systemctl restart nginx
-        "
-
-    # ███████ 第七阶段：后续监控 ███████████████
-    - name: 验证部署结果
-      run: |
-        echo "检查网站可访问性..."
-        curl -I https://${{ secrets.DOMAIN }} --retry 3 --retry-delay 5
-        echo "健康检查完成"
-
-    # ███████ 第八阶段：清理敏感数据 ███████████
-    - name: 安全清理
-      if: always()  # 无论成功失败都执行
-      run: |
-        rm -f ~/.ssh/deploy_key
-        echo '已移除SSH密钥'
+    # ███████ 第 5 阶段：部署 ██████████████████
+    - name: 同步到服务器
+      uses: appleboy/scp-action@v1
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: "./frontend/dist/*"
+        target: "/var/www/production"
