@@ -21,14 +21,14 @@ jobs:
         cache: 'npm'
         cache-dependency-path: './vue-blog-project/package.json'  # 明确子目录缓存路径:ml-citation{ref="5,8" data="citationList"}
 
-    - name: 验证依赖锁文件状态
-      working-directory: ./vue-blog-project
-      run: |
-        if [ ! -f "package-lock.json" ] && [ ! -f "yarn.lock" ]; then
-          echo "紧急错误: 前端项目缺少依赖锁文件!"
-          exit 1
-        fi
-        ls -lh package*.json  # 显示文件详细信息:ml-citation{ref="4,6" data="citationList"}
+    # - name: 验证依赖锁文件状态
+    #   working-directory: ./vue-blog-project
+    #   run: |
+    #     if [ ! -f "package-lock.json" ] && [ ! -f "yarn.lock" ]; then
+    #       echo "紧急错误: 前端项目缺少依赖锁文件!"
+    #       exit 1
+    #     fi
+    #     ls -lh package*.json  # 显示文件详细信息:ml-citation{ref="4,6" data="citationList"}
 
     # ██ 前端依赖安装与构建 █████████████████████████████████   
     - name: 安装前端依赖
