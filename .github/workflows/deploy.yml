@@ -1,43 +1,60 @@
-name: CI/CD with npm
+name: Vue Blog CI/CD
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ROOT: "vue-blog-project"  # 定义项目根目录变量
+
     steps:
-      # ███████ 阶段1：基础设置 ███████
-      - name: 检出代码
-        uses: actions/checkout@v4
+    # ███████ 阶段 1：代码检出 ███████████
+    - name: 检出代码（保留完整仓库结构）
+      uses: actions/checkout@v4
+      
+    # ███████ 阶段 2：Node.js 环境配置 ███████████
+    - name: 安装 Node.js 20.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'pnpm'
+        cache-dependency-path: ${{ env.PROJECT_ROOT }}/pnpm-lock.yaml  # 精确锁定缓存路径
 
-      - name: 安装 Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.x"
-          cache: 'npm'  # 强制使用npm缓存:ml-citation{ref="3" data="citationList"}
-          cache-dependency-path: '**/package-lock.json'  # 明确指定npm锁文件
+    # ███████ 阶段 3：pnpm 安装 ███████████
+    - name: 安装指定版本 pnpm
+      run: npm install -g pnpm@8.15.6 --prefix ${{ env.PROJECT_ROOT }}
 
-      # ███████ 阶段2：依赖处理 ███████
-      - name: 删除pnpm锁文件（可选）
-        run: rm -f pnpm-lock.yaml  # 防止CI混淆
+    # ███████ 阶段 4：依赖安装 ███████████
+    - name: 安装项目依赖
+      working-directory: ${{ env.PROJECT_ROOT }}  # 关键路径配置
+      run: |
+        pnpm config set store-dir ~/.pnpm-store
+        pnpm install --frozen-lockfile
 
-      - name: 安装依赖（强制npm）
-        run: |
-          npm config set registry https://registry.npmmirror.com  # 国内镜像
-          npm ci --omit=dev  # 严格使用package-lock.json:ml-citation{ref="3" data="citationList"}
+    # ███████ 阶段 5：构建流程 ███████████
+    - name: 执行项目构建
+      working-directory: ${{ env.PROJECT_ROOT }}
+      run: pnpm build
+      env:
+        NODE_ENV: production
 
-      # ███████ 阶段3：构建流程 ███████
-      - name: 构建项目
-        run: npm run build
+    # ███████ 阶段 6：部署验证 ███████████
+    - name: 验证构建产物
+      working-directory: ${{ env.PROJECT_ROOT }}
+      run: |
+        [ -d "./dist" ] || (echo "构建产物目录不存在"; exit 1)
+        [ -f "./dist/index.html" ] || (echo "入口文件缺失"; exit 1)
 
-      # ███████ 阶段4：部署示例 ███████
-      - name: 部署到服务器
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "dist/*"
-          target: "/var/www/app"
+    # ███████ 阶段 7：增量部署 ███████████
+    - name: 智能同步到服务器
+      uses: easingthemes/ssh-deploy@v4
+      with:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        REMOTE_HOST: ${{ secrets.SERVER_IP }}
+        REMOTE_USER: ${{ secrets.SSH_USER }}
+        SOURCE: "${{ env.PROJECT_ROOT }}/dist/"
+        TARGET: "/var/www/production"
+        ARGS: "-avz --chmod=755 --checksum --delete"
