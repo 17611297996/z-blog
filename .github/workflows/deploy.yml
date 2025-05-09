@@ -1,54 +1,64 @@
-name: CI/CD Pipeline
+name: Vue Blog CI/CD
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     env:
-      PNPM_VERSION: "8.15.6"  # 精确锁定版本
+      PROJECT_DIR: "vue-blog-project"  # 核心目录变量
 
     steps:
-    # ███████ 第 1 阶段：基础环境配置 ███████████
+    # ███████ 阶段 1：代码准备 ███████████
     - name: 检出代码
       uses: actions/checkout@v4
-
-    - name: 安装 Node.js 20.x + pnpm
-      uses: pnpm/action-setup@v2  # 使用官方推荐方式
       with:
-        node-version: 20.x
-        pnpm-version: ${{ env.PNPM_VERSION }}
-        run_install: false
+        path: ${{ env.PROJECT_DIR }}  # 指定检出目录
 
-    # ███████ 第 2 阶段：依赖安装与构建 ███████
-    - name: 安装前端依赖
-      working-directory: ./frontend
+    # ███████ 阶段 2：环境配置 ███████████
+    - name: 初始化 Node.js 环境
+      uses: pnpm/action-setup@v2
+      with:
+        node-version: "20"
+        pnpm-version: "8"
+        working-directory: ${{ env.PROJECT_DIR }}
+
+    # ███████ 阶段 3：依赖管理 ███████████
+    - name: 安装项目依赖
+      working-directory: ${{ env.PROJECT_DIR }}
       run: |
-        pnpm install --frozen-lockfile --ignore-scripts
-        echo "依赖存储路径: $(pnpm store path)"
+        pnpm config set store-dir ~/.pnpm-store  # 统一存储路径
+        pnpm install --frozen-lockfile --shamefully-hoist
 
-    - name: 构建项目
-      working-directory: ./frontend
+    # ███████ 阶段 4：构建流程 ███████████
+    - name: 执行项目构建
+      working-directory: ${{ env.PROJECT_DIR }}
       run: pnpm build
       env:
         NODE_ENV: production
+        VITE_API_BASE: ${{ secrets.VITE_API_BASE }}  # 按需配置环境变量
 
-    # ███████ 第 3 阶段：部署优化 ███████████
-    - name: 验证构建产物
+    # ███████ 阶段 5：部署验证 ███████████
+    - name: 产物完整性检查
       run: |
-        ls -lh ./frontend/dist
-        [ -f ./frontend/dist/index.html ] || (echo "构建产物缺失！"; exit 1)
+        find ${{ env.PROJECT_DIR }}/dist -type f | grep '\.html$' || (echo "HTML文件缺失！"; exit 1)
+        [ -f ${{ env.PROJECT_DIR }}/dist/assets/main.*.js ] || (echo "核心JS文件缺失！"; exit 1)
 
-    - name: 安全部署到服务器
-      uses: easingthemes/ssh-deploy@v4  # 更可靠的同步方案
+    # ███████ 阶段 6：智能部署 ███████████
+    - name: 增量同步到服务器
+      uses: easingthemes/ssh-deploy@v4
       with:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         REMOTE_HOST: ${{ secrets.SERVER_IP }}
         REMOTE_USER: ${{ secrets.SSH_USER }}
-        REMOTE_PORT: 22
-        SOURCE: "./frontend/dist/"
         TARGET: "/var/www/production"
-        ARGS: "-avz --chmod=755 --delete"
+        SOURCE: "${{ env.PROJECT_DIR }}/dist/"
+        ARGS: |
+          -avz 
+          --checksum 
+          --delete 
+          --exclude=.DS_Store 
+          --exclude=*.map
         DEBUG: "true"
