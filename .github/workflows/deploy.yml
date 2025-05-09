@@ -38,4 +38,15 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         script: |
           echo "开始同步文件到服务器..."
-         
+          # 确保目标目录存在
+          ssh -i "$HOME/.ssh/github_actions_key" -p ${{ secrets.SSH_PORT }} \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
+            "mkdir -p /www/wwwroot/default"
+          
+          # 正确的 rsync 方向：本地仓库 -> 服务器
+          rsync -avz --progress --delete \
+            -e "ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }}" \
+            "$GITHUB_WORKSPACE/" \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+          
+          echo "同步完成！"
