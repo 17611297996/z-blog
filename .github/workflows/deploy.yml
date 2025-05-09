@@ -1,36 +1,54 @@
-name: Deploy to Server
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      PNPM_VERSION: "8.15.6"  # 精确锁定版本
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4  # 正确拉取代码到 Runner 的 $GITHUB_WORKSPACE 目录
+    # ███████ 第 1 阶段：基础环境配置 ███████████
+    - name: 检出代码
+      uses: actions/checkout@v4
 
-    - name: Debug - List repository files
-      run: ls -la $GITHUB_WORKSPACE  # 确认仓库文件存在
+    - name: 安装 Node.js 20.x + pnpm
+      uses: pnpm/action-setup@v2  # 使用官方推荐方式
+      with:
+        node-version: 20.x
+        pnpm-version: ${{ env.PNPM_VERSION }}
+        run_install: false
 
-    - name: Setup SSH Environment
+    # ███████ 第 2 阶段：依赖安装与构建 ███████
+    - name: 安装前端依赖
+      working-directory: ./frontend
       run: |
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        # 注入 SSH 私钥 (必须为 OpenSSH 格式，无多余换行符)
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
-        chmod 600 ~/.ssh/github_actions_key
-        # 添加服务器指纹到 known_hosts (避免首次连接确认)
-        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+        pnpm install --frozen-lockfile --ignore-scripts
+        echo "依赖存储路径: $(pnpm store path)"
 
-    - name: Install Rsync
-      run: sudo apt-get update && sudo apt-get install -y rsync  # 确保 Runner 有 rsync 工具
+    - name: 构建项目
+      working-directory: ./frontend
+      run: pnpm build
+      env:
+        NODE_ENV: production
 
-    - name: Sync Files via Rsync
+    # ███████ 第 3 阶段：部署优化 ███████████
+    - name: 验证构建产物
       run: |
-        rsync -avz --progress --delete \
-          -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-          $GITHUB_WORKSPACE/ \
-          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+        ls -lh ./frontend/dist
+        [ -f ./frontend/dist/index.html ] || (echo "构建产物缺失！"; exit 1)
+
+    - name: 安全部署到服务器
+      uses: easingthemes/ssh-deploy@v4  # 更可靠的同步方案
+      with:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        REMOTE_HOST: ${{ secrets.SERVER_IP }}
+        REMOTE_USER: ${{ secrets.SSH_USER }}
+        REMOTE_PORT: 22
+        SOURCE: "./frontend/dist/"
+        TARGET: "/var/www/production"
+        ARGS: "-avz --chmod=755 --delete"
+        DEBUG: "true"
