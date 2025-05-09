@@ -1,50 +1,77 @@
-name: Robust Deployment
+name: 全栈项目自动部署（含 pnpm 修复）
 
-on: [push]
+on:
+  push:
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      NODE_OPTIONS: "--max_old_space_size=4096"
+      NODE_OPTIONS: "--max_old_space_size=4096"  # 防止内存溢出
 
     steps:
-    - uses: actions/checkout@v4
+    # ███████ 初始化代码仓库 ███████████████████
+    - name: 检出代码
+      uses: actions/checkout@v4
 
-    # 关键修复步骤 ████████████████████████████
-    - name: 预装基础设施
-      run: |
-        # 解决依赖关系问题
-        sudo apt-get update && sudo apt-get install -y build-essential python3
-        # 核武器级清理残留文件
-        rm -rf node_modules */node_modules
-
-    - name: 配置 Node.js 18 环境
+    # ███████ Node.js 环境配置 █████████████████
+    - name: 安装 Node.js 18
       uses: actions/setup-node@v3
       with:
-        node-version: 18
-        cache: 'pnpm'
+        node-version: 18.x
+        cache: 'pnpm'  # 启用缓存加速
         cache-dependency-path: '**/pnpm-lock.yaml'
 
-    - name: 激活核心包管理器
+    # ███████ pnpm 修复核心步骤 ███████████████
+    - name: 强制启用 Corepack
       run: |
-        corepack enable
+        # 清理旧版本残留
+        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
+        # 激活 Node.js 自带包管理器
+        corepack enable --install-directory=/usr/local/bin
+        echo "Corepack 已激活"
+
+    - name: 安装 pnpm（双重保障）
+      run: |
+        # 方式1: 通过 Corepack 安装
         corepack prepare pnpm@8 --activate
+        # 方式2: 通过 npm 全局安装（国内镜像）
+        npm install -g pnpm@8 --registry=https://registry.npmmirror.com
+        # 确保路径写入系统变量
+        echo "全局路径: $(npm root -g)/bin" >> $GITHUB_PATH
 
-    - name: 镜像加速（中国大陆优化版）
+    # ███████ 验证修复结果 ███████████████████
+    - name: 验证环境
       run: |
-        pnpm config set registry https://registry.npmmirror.com
-        pnpm config set store-dir ~/.pnpm-store
-        pnpm config set strict-peer-dependencies false
+        echo "### 关键路径检查 ###"
+        which node    # 应输出 /opt/hostedtoolcache/node/...
+        which pnpm    # 应输出 /usr/local/bin/pnpm
+        echo "### 版本信息 ###"
+        node -v
+        pnpm -v       # 应输出版本号如 8.x.x
+        echo "### PATH 变量 ###"
+        echo $PATH | tr ':' '\n'
 
-    - name: 安装前端依赖（严格模式）
-      working-directory: ./vue-blog-project
+    # ███████ 前端项目构建示例 ███████████████
+    - name: 安装前端依赖
+      working-directory: ./your-project-path  # 修改为你的项目路径
       run: |
-        pnpm install --frozen-lockfile --prefer-offline
+        pnpm install --frozen-lockfile
         pnpm store prune  # 清理无效缓存
 
-    - name: 编译生产环境代码
-      working-directory: ./vue-blog-project
-      run: pnpm build --modern
+    - name: 构建生产环境代码
+      working-directory: ./your-project-path
+      run: pnpm build
 
-    # 后续部署步骤保持不变...
+    # ███████ 后端部署示例（按需添加） ████████
+    # - name: 部署到服务器
+    #   uses: appleboy/ssh-action@master
+    #   with:
+    #     host: ${{ secrets.SERVER_IP }}
+    #     key: ${{ secrets.SERVER_SSH_KEY }}
+    #     script: |
+    #       cd /var/www/your-project
+    #       git pull
+    #       pnpm install
+    #       pm2 restart all
