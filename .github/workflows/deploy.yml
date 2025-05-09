@@ -1,27 +1,59 @@
+name: 全栈项目自动化部署
+
+on:
+  push:
+    branches: [ "main" ]
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout code
+    # ██ 代码获取阶段 █████████████████████████████████
+    - name: 拉取仓库代码
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    # ██ 前端构建阶段 █████████████████████████████████
+    - name: 配置 Node.js 环境
       uses: actions/setup-node@v3
       with:
         node-version: 18
         cache: 'npm'
         cache-dependency-path: './vue-blog-project/package-lock.json'
 
-    - name: Validate Lock Files
+    - name: 构建前端项目
       working-directory: ./vue-blog-project
       run: |
-        echo "当前目录：$(pwd)"
-        ls -la  # 列出文件确认锁文件存在
+        npm ci --legacy-peer-deps
+        npm run build
+        du -sh dist  # 验证构建产物体积
 
-    - name: Install Dependencies
-      working-directory: ./vue-blog-project
-      run: npm ci  # 使用 package-lock.json 精确安装
+    # ██ 服务器连接配置 █████████████████████████████████
+    - name: 初始化 SSH 密钥
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
+        chmod 600 ~/.ssh/github_actions_key
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Build Project
-      working-directory: ./vue-blog-project
-      run: npm run build
+    - name: 安装传输工具
+      run: sudo apt-get update && sudo apt-get install -y rsync
+
+    # ██ 文件同步阶段 █████████████████████████████████
+    - name: 智能文件同步
+      run: |
+        rsync -avz --progress --delete \
+          --exclude=node_modules \
+          --exclude=.git \
+          --exclude=.github \
+          --include="vue-blog-project/dist" \
+          -e "ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }}" \
+          $GITHUB_WORKSPACE/ \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+
+    # ██ 服务管理阶段 █████████████████████████████████
+    - name: 重启 Web 服务
+      run: |
+        ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }} \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
+          "nginx -s reload && systemctl restart php-fpm"
