@@ -1,60 +1,36 @@
-name: Vue Blog CI/CD
+name: Deploy to Server
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      PROJECT_ROOT: "vue-blog-project"  # 定义项目根目录变量
 
     steps:
-    # ███████ 阶段 1：代码检出 ███████████
-    - name: 检出代码（保留完整仓库结构）
-      uses: actions/checkout@v4
-      
-    # ███████ 阶段 2：Node.js 环境配置 ███████████
-    - name: 安装 Node.js 20.x
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
-        cache: 'pnpm'
-        cache-dependency-path: ${{ env.PROJECT_ROOT }}/pnpm-lock.yaml  # 精确锁定缓存路径
+    - name: Checkout code
+      uses: actions/checkout@v4  # 正确拉取代码到 Runner 的 $GITHUB_WORKSPACE 目录
 
-    # ███████ 阶段 3：pnpm 安装 ███████████
-    - name: 安装指定版本 pnpm
-      run: npm install -g pnpm@8.15.6 --prefix ${{ env.PROJECT_ROOT }}
+    - name: Debug - List repository files
+      run: ls -la $GITHUB_WORKSPACE  # 确认仓库文件存在
 
-    # ███████ 阶段 4：依赖安装 ███████████
-    - name: 安装项目依赖
-      working-directory: ${{ env.PROJECT_ROOT }}  # 关键路径配置
+    - name: Setup SSH Environment
       run: |
-        pnpm config set store-dir ~/.pnpm-store
-        pnpm install --frozen-lockfile
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        # 注入 SSH 私钥 (必须为 OpenSSH 格式，无多余换行符)
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
+        chmod 600 ~/.ssh/github_actions_key
+        # 添加服务器指纹到 known_hosts (避免首次连接确认)
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    # ███████ 阶段 5：构建流程 ███████████
-    - name: 执行项目构建
-      working-directory: ${{ env.PROJECT_ROOT }}
-      run: pnpm build
-      env:
-        NODE_ENV: production
+    - name: Install Rsync
+      run: sudo apt-get update && sudo apt-get install -y rsync  # 确保 Runner 有 rsync 工具
 
-    # ███████ 阶段 6：部署验证 ███████████
-    - name: 验证构建产物
-      working-directory: ${{ env.PROJECT_ROOT }}
+    - name: Sync Files via Rsync
       run: |
-        [ -d "./dist" ] || (echo "构建产物目录不存在"; exit 1)
-        [ -f "./dist/index.html" ] || (echo "入口文件缺失"; exit 1)
-
-    # ███████ 阶段 7：增量部署 ███████████
-    - name: 智能同步到服务器
-      uses: easingthemes/ssh-deploy@v4
-      with:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        REMOTE_HOST: ${{ secrets.SERVER_IP }}
-        REMOTE_USER: ${{ secrets.SSH_USER }}
-        SOURCE: "${{ env.PROJECT_ROOT }}/dist/"
-        TARGET: "/var/www/production"
-        ARGS: "-avz --chmod=755 --checksum --delete"
+        rsync -avz --progress --delete \
+          -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
+          $GITHUB_WORKSPACE/ \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
