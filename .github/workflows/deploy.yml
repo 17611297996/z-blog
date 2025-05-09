@@ -19,7 +19,7 @@ jobs:
       with:
         node-version: 18
         cache: 'npm'
-        cache-dependency-path: './vue-blog-project/package-lock.json'  # 明确子目录缓存路径:ml-citation{ref="5,8" data="citationList"}
+        cache-dependency-path: './vue-blog-project/package.json'  # 明确子目录缓存路径:ml-citation{ref="5,8" data="citationList"}
 
     - name: 验证依赖锁文件状态
       working-directory: ./vue-blog-project
