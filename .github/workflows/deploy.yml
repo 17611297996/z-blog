@@ -1,61 +1,103 @@
+name: CI/CD Pipeline (Vue.js + pnpm)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     env:
-      PNPM_VERSION: "8.15.6"  # 指定精确版本
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}  # 默认SSH端口
 
     steps:
-    # ███████ 强制重置 Node 环境 ███████████████
-    - name: 清除旧版 Node 残留
-      run: |
-        # 移除所有可能的残留链接
-        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null
-        # 清除可能的缓存干扰
-        sudo npm cache clean -f
-        
-    # ███████ Node.js 安装强化 ████████████████
-    - name: 安装 Node.js 20 (强制模式)
+    # ███████ 第一阶段：代码准备 ████████████████
+    - name: 检出仓库代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 完整克隆历史记录
+
+    # ███████ 第二阶段：Node.js 环境配置 ███████
+    - name: 安装 Node.js 20
       uses: actions/setup-node@v3
       with:
         node-version: 20.x
         cache: 'pnpm'
         cache-dependency-path: '**/pnpm-lock.yaml'
-        check-latest: true  # 强制检查最新版本
 
-    # ███████ pnpm 安装紧急修复 ███████████████
-    - name: 核心修复 - pnpm 安装
+    # ███████ 第三阶段：pnpm 紧急修复 ██████████
+    - name: 强制安装 pnpm
       run: |
-        # 强制激活 Corepack
+        # 清除旧版本
+        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
+        # 通过 Corepack 安装
         sudo corepack enable --install-directory=/usr/local/bin
-        # 精确安装指定版本
-        sudo corepack prepare pnpm@${PNPM_VERSION} --activate
-        # 双重安装保障
-        npm install -g pnpm@${PNPM_VERSION} --registry=https://registry.npmmirror.com
-        # 路径显式注入
-        echo "全局路径: $(npm root -g)/bin" >> $GITHUB_PATH
-        # 符号链接保障
-        sudo ln -sf "$(npm root -g)/bin/pnpm" /usr/local/bin/pnpm
-        # 权限修复
-        sudo chmod 755 $(npm root -g)/bin/pnpm
+        sudo corepack prepare pnpm@8.15.6 --activate
+        # 通过 npm 双重安装
+        npm install -g pnpm@8.15.6 --registry=https://registry.npmmirror.com
+        # 路径验证
+        echo "pnpm 路径: $(which pnpm)"
+        chmod +x $(which pnpm)
 
-    # ███████ 环境验证 ███████████████████████
-    - name: 深度环境诊断
+    # ███████ 第四阶段：依赖安装与构建 ██████████
+    - name: 安装项目依赖
+      working-directory: ./frontend
       run: |
-        echo "===== 关键诊断信息 ====="
-        # 路径分解
-        echo "PATH 分解:"
-        echo "$PATH" | tr ':' '\n'
-        # 物理路径追踪
-        echo "pnpm 真实路径:"
-        realpath $(which pnpm)
-        # 版本验证
-        echo "pnpm 版本:"
-        pnpm -v
-        # 权限检查
-        echo "文件权限:"
-        ls -l $(which pnpm)
-        # 全局路径验证
-        echo "全局模块路径:"
-        npm root -g
+        pnpm install --frozen-lockfile
+        pnpm store status  # 显示存储状态
 
-    # ███████ 后续步骤... ███████████████████
+    - name: 执行代码质量检查
+      working-directory: ./frontend
+      run: |
+        pnpm lint
+        pnpm type-check
+
+    - name: 构建生产包
+      working-directory: ./frontend
+      run: |
+        pnpm build
+        du -sh dist  # 显示构建产物大小
+
+    # ███████ 第五阶段：部署配置 ███████████████
+    - name: 配置 SSH 连接
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        # 严格模式验证
+        ssh-keyscan -p $SSH_PORT ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    # ███████ 第六阶段：部署到生产环境 ██████████
+    - name: 同步构建产物
+      run: |
+        rsync -avz --progress --delete \
+          -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no" \
+          ./frontend/dist/ \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/var/www/production/
+
+    - name: 执行服务器端命令
+      run: |
+        ssh -i ~/.ssh/deploy_key -p $SSH_PORT ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} "
+          # 生产环境操作
+          cd /var/www/production && \
+          echo '当前目录: $(pwd)' && \
+          echo '文件列表:' && ls -al && \
+          # 重启服务示例
+          sudo systemctl restart nginx
+        "
+
+    # ███████ 第七阶段：后续监控 ███████████████
+    - name: 验证部署结果
+      run: |
+        echo "检查网站可访问性..."
+        curl -I https://${{ secrets.DOMAIN }} --retry 3 --retry-delay 5
+        echo "健康检查完成"
+
+    # ███████ 第八阶段：清理敏感数据 ███████████
+    - name: 安全清理
+      if: always()  # 无论成功失败都执行
+      run: |
+        rm -f ~/.ssh/deploy_key
+        echo '已移除SSH密钥'
