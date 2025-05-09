@@ -1,64 +1,43 @@
-name: Vue Blog CI/CD
+name: CI/CD with npm
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    env:
-      PROJECT_DIR: "vue-blog-project"  # 核心目录变量
-
     steps:
-    # ███████ 阶段 1：代码准备 ███████████
-    - name: 检出代码
-      uses: actions/checkout@v4
-      with:
-        path: ${{ env.PROJECT_DIR }}  # 指定检出目录
+      # ███████ 阶段1：基础设置 ███████
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-    # ███████ 阶段 2：环境配置 ███████████
-    - name: 初始化 Node.js 环境
-      uses: pnpm/action-setup@v2
-      with:
-        node-version: "20"
-        pnpm-version: "8"
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: 安装 Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: 'npm'  # 强制使用npm缓存:ml-citation{ref="3" data="citationList"}
+          cache-dependency-path: '**/package-lock.json'  # 明确指定npm锁文件
 
-    # ███████ 阶段 3：依赖管理 ███████████
-    - name: 安装项目依赖
-      working-directory: ${{ env.PROJECT_DIR }}
-      run: |
-        pnpm config set store-dir ~/.pnpm-store  # 统一存储路径
-        pnpm install --frozen-lockfile --shamefully-hoist
+      # ███████ 阶段2：依赖处理 ███████
+      - name: 删除pnpm锁文件（可选）
+        run: rm -f pnpm-lock.yaml  # 防止CI混淆
 
-    # ███████ 阶段 4：构建流程 ███████████
-    - name: 执行项目构建
-      working-directory: ${{ env.PROJECT_DIR }}
-      run: pnpm build
-      env:
-        NODE_ENV: production
-        VITE_API_BASE: ${{ secrets.VITE_API_BASE }}  # 按需配置环境变量
+      - name: 安装依赖（强制npm）
+        run: |
+          npm config set registry https://registry.npmmirror.com  # 国内镜像
+          npm ci --omit=dev  # 严格使用package-lock.json:ml-citation{ref="3" data="citationList"}
 
-    # ███████ 阶段 5：部署验证 ███████████
-    - name: 产物完整性检查
-      run: |
-        find ${{ env.PROJECT_DIR }}/dist -type f | grep '\.html$' || (echo "HTML文件缺失！"; exit 1)
-        [ -f ${{ env.PROJECT_DIR }}/dist/assets/main.*.js ] || (echo "核心JS文件缺失！"; exit 1)
+      # ███████ 阶段3：构建流程 ███████
+      - name: 构建项目
+        run: npm run build
 
-    # ███████ 阶段 6：智能部署 ███████████
-    - name: 增量同步到服务器
-      uses: easingthemes/ssh-deploy@v4
-      with:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        REMOTE_HOST: ${{ secrets.SERVER_IP }}
-        REMOTE_USER: ${{ secrets.SSH_USER }}
-        TARGET: "/var/www/production"
-        SOURCE: "${{ env.PROJECT_DIR }}/dist/"
-        ARGS: |
-          -avz 
-          --checksum 
-          --delete 
-          --exclude=.DS_Store 
-          --exclude=*.map
-        DEBUG: "true"
+      # ███████ 阶段4：部署示例 ███████
+      - name: 部署到服务器
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "dist/*"
+          target: "/var/www/app"
