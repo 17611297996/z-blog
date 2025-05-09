@@ -10,21 +10,14 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # 拉取代码到 $GITHUB_WORKSPACE
 
-    - name: Set up SSH Key
+    - name: Debug - List repository files
       run: |
-        # 创建 .ssh 目录并设置权限
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        # 将私钥写入文件
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
-        chmod 600 ~/.ssh/github_actions_key
-        # 添加服务器到 known_hosts
-        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
+        echo "仓库文件列表："
+        ls -la $GITHUB_WORKSPACE  # 确认仓库文件已拉取
 
-    - name: Sync files via SSH
+    - name: Sync files to Server
       uses: appleboy/ssh-action@v1
       with:
         host: ${{ secrets.SERVER_IP }}
@@ -32,5 +25,16 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          # 同步仓库所有文件到服务器
-          rsync -avz --delete -e "ssh -i ~/.ssh/github_actions_key -p $SSH_PORT" $GITHUB_WORKSPACE/ $SSH_USERNAME@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+          echo "开始同步文件到服务器..."
+          # 强制删除目标目录残留文件（谨慎操作）
+          ssh -i "$HOME/.ssh/github_actions_key" \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
+            "rm -rf /www/wwwroot/default/*"
+          
+          # 正确的 rsync 方向：本地仓库 -> 服务器
+          rsync -avz --progress --delete \
+            -e "ssh -i $HOME/.ssh/github_actions_key" \
+            "$GITHUB_WORKSPACE/" \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+          
+          echo "同步完成！"
