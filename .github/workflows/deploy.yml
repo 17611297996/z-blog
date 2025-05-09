@@ -1,4 +1,4 @@
-name: Deploy to Server
+name: Deploy Fullstack
 
 on:
   push:
@@ -9,28 +9,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # 代码拉取 ----------------------------------------------------------------
     - name: Checkout code
-      uses: actions/checkout@v4  # 正确拉取代码到 Runner 的 $GITHUB_WORKSPACE 目录
+      uses: actions/checkout@v4
 
-    - name: Debug - List repository files
-      run: ls -la $GITHUB_WORKSPACE  # 确认仓库文件存在
+    # Node.js 环境配置 --------------------------------------------------------
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18  # 根据项目需求调整版本号
+        cache: 'npm'
 
+    # 前端构建阶段 ------------------------------------------------------------
+    - name: Install and Build Frontend
+      working-directory: ./vue-blog-project  # 定位到前端目录
+      run: |
+        npm install --legacy-peer-deps       # 安装依赖（适配旧项目可加 --legacy-peer-deps）
+        npm run build                         # 执行构建命令
+        echo "构建完成，生成文件位置：" 
+        ls -la dist                          # 验证构建产物
+
+    # 服务器同步准备 ----------------------------------------------------------
     - name: Setup SSH Environment
       run: |
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        # 注入 SSH 私钥 (必须为 OpenSSH 格式，无多余换行符)
         echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
         chmod 600 ~/.ssh/github_actions_key
-        # 添加服务器指纹到 known_hosts (避免首次连接确认)
         ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
     - name: Install Rsync
-      run: sudo apt-get update && sudo apt-get install -y rsync  # 确保 Runner 有 rsync 工具
+      run: sudo apt-get update && sudo apt-get install -y rsync
 
+    # 文件同步阶段 ------------------------------------------------------------
     - name: Sync Files via Rsync
       run: |
         rsync -avz --progress --delete \
+          --exclude=node_modules \          # 排除所有 node_modules 目录
+          --exclude=.git \                  # 排除版本控制目录
+          --exclude=.github \               # 排除 CI/CD 配置目录
           -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
           $GITHUB_WORKSPACE/ \
           ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+
+    # 可选：服务器端后续操作 --------------------------------------------------
+    - name: Restart Services (Optional)
+      run: |
+        ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }} \
+          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
+          "pm2 restart all"  # 示例：重启 Node.js 服务
