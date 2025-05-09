@@ -36,6 +36,8 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SSH_PORT }}
+        source: ./ # 上传的源路径
+        target: /www/wwwroot/default/ # 临时上传目录
         script: |
           echo "开始同步文件到服务器..."
           # 确保目标目录存在
