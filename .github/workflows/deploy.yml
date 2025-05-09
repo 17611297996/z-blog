@@ -1,4 +1,4 @@
-name: Z-Blog 全栈项目自动化部署
+name: Z-Blog 全栈自动部署
 
 on:
   push:
@@ -9,47 +9,97 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # ██ 代码库初始化 █████████████████████████████████
-    - name: 拉取代码仓库
-      uses: actions/checkout@v4
+    # ██ 代码检出 █████████████████████████████████
+    - uses: actions/checkout@v4
 
-    # ██ 前端构建环境配置 █████████████████████████████████
+    # ██ 动态包管理器检测 █████████████████████████
+    - name: 智能检测包管理器
+      id: detect-pm
+      working-directory: ./vue-blog-project
+      run: |
+        # 检测锁文件类型
+        if [ -f "pnpm-lock.yaml" ]; then
+          PM="pnpm"
+          LOCKFILE="pnpm-lock.yaml"
+        elif [ -f "yarn.lock" ]; then
+          PM="yarn" 
+          LOCKFILE="yarn.lock"
+        elif [ -f "package-lock.json" ]; then
+          PM="npm"
+          LOCKFILE="package-lock.json"
+        else
+          echo "未检测到锁文件，生成 pnpm 锁文件..."
+          pnpm install --lockfile-only
+          PM="pnpm"
+          LOCKFILE="pnpm-lock.yaml"
+        fi
+
+        # 输出检测结果
+        echo "使用包管理器: $PM"
+        echo "lockfile=./vue-blog-project/$LOCKFILE" >> $GITHUB_OUTPUT
+        echo "pm=$PM" >> $GITHUB_OUTPUT
+
+    # ██ Node.js 环境配置 ███████████████████████
     - name: 配置 Node.js 环境
       uses: actions/setup-node@v3
       with:
         node-version: 18
-        cache: 'npm'
-        cache-dependency-path: './vue-blog-project/package.json'  # 明确子目录缓存路径:ml-citation{ref="5,8" data="citationList"}
+        cache: ${{ steps.detect-pm.outputs.pm }}
+        cache-dependency-path: ${{ steps.detect-pm.outputs.lockfile }}
 
-    - name: 验证依赖锁文件状态
-      working-directory: ./vue-blog-project
+    # ██ 包管理器安装 ██████████████████████████
+    - name: 安装检测到的包管理器
+      if: steps.detect-pm.outputs.pm != 'npm'
       run: |
-        if [ ! -f "pnpm-lock.yaml" ] && [ ! -f "yarn.lock" ]; then
-          echo "紧急错误: 前端项目缺少依赖锁文件!"
-          exit 1
-        fi
-        ls -lh package*.json  # 显示文件详细信息:ml-citation{ref="4,6" data="citationList"}
+        case "${{ steps.detect-pm.outputs.pm }}" in
+          pnpm)
+            npm install -g pnpm@8
+            ;;
+          yarn)
+            npm install -g yarn@1
+            ;;
+        esac
 
-    # ██ 前端依赖安装与构建 █████████████████████████████████   
+    # ██ 前端依赖安装与构建 █████████████████████
     - name: 安装前端依赖
       working-directory: ./vue-blog-project
-      run: npm ci --legacy-peer-deps  # 严格依据 lockfile 安装:ml-citation{ref="4,5" data="citationList"}
+      run: |
+        case "${{ steps.detect-pm.outputs.pm }}" in
+          pnpm)
+            pnpm install --frozen-lockfile
+            ;;
+          yarn)
+            yarn install --frozen-lockfile
+            ;;
+          npm)
+            npm ci
+            ;;
+        esac
 
-    - name: 编译生产环境代码
+    - name: 编译生产代码
       working-directory: ./vue-blog-project
       run: |
-        npm run build
-        du -sh dist  # 输出构建产物体积验证:ml-citation{ref="4" data="citationList"}
+        case "${{ steps.detect-pm.outputs.pm }}" in
+          pnpm)
+            pnpm build
+            ;;
+          yarn)
+            yarn build
+            ;;
+          npm)
+            npm run build
+            ;;
+        esac
 
-    # ██ 服务器端部署流程 █████████████████████████████████
-    - name: 配置 SSH 安全通道
+    # ██ 服务器部署 ████████████████████████████
+    - name: 配置 SSH 通道
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts:ml-citation{ref="3,7" data="citationList"}
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: 智能文件同步
+    - name: 增量文件同步
       run: |
         rsync -avz --progress \
           --exclude=.git \
@@ -57,10 +107,4 @@ jobs:
           --include="vue-blog-project/dist/**" \
           -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }}" \
           ./ \
-          ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/var/www/z-blog/:ml-citation{ref="4,8" data="citationList"}
-
-    - name: 服务热更新
-      run: |
-        ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} \
-          ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-          "sudo systemctl reload nginx && pm2 restart all":ml-citation{ref="3" data="citationList"}
+          ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/var/www/z-blog/
