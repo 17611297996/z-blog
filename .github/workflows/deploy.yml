@@ -15,15 +15,18 @@ jobs:
     - name: Install pnpm & Dependencies
       working-directory: vue-blog-project
       run: |
-        # 显式安装 pnpm（解决 GitHub Runner 默认无 pnpm 的问题）
         npm install -g pnpm
-        # 使用 pnpm 安装依赖（兼容 link: 协议）
         pnpm install
-        # 构建项目（假设 package.json 在 vue-blog-project 目录）
+        rm -rf node_modules/.vite  # 清理缓存
         pnpm run build
 
-    - name: Debug - Show build output
-      run: ls -la vue-blog-project/dist
+    - name: Check Build Output
+      run: |
+        ls -la vue-blog-project/dist
+        if [ -z "$(ls -A vue-blog-project/dist)" ]; then
+          echo "Error: dist directory is empty!"
+          exit 1
+        fi
 
     - name: Setup SSH Environment
       run: |
@@ -41,7 +44,7 @@ jobs:
         rsync -avz --progress --delete \
           --exclude='node_modules' \
           --exclude='.git' \
-          --exclude='dist/.DS_Store' \  # 可选：排除 macOS 生成的隐藏文件
+          --exclude='.DS_Store' \
           -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-          vue-blog-project/dist/ \
+          ./vue-blog-project/dist/ \
           ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
