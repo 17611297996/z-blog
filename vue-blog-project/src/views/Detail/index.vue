@@ -39,7 +39,7 @@ import Search from '@components/Search/index.vue'
 import { storeToRefs } from 'pinia'
 import { useMainStore } from '@store/mainStore.js'
 import Lilia from '@assets/images/Lilia.webp'
-import MobileWeb from '@components/Header/mobileHeader/index.vue'
+import MobileWeb from '@components/Header/MobileHeader/index.vue'
 import PCHeader from '@components/Header/PCHeader/index.vue'
 import { isMobile } from '@utils/index.js'
 const store = useMainStore()
