@@ -10,27 +10,39 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # 正确拉取代码到 Runner 的 $GITHUB_WORKSPACE 目录
+      uses: actions/checkout@v4
 
-    - name: Debug - List repository files
-      run: ls -la $GITHUB_WORKSPACE  # 确认仓库文件存在
+    - name: Install dependencies and build (适配 pnpm/npm)
+      working-directory: vue-blog-project  # 指定在项目子目录操作
+      run: |
+        # 优先尝试使用 pnpm，若不存在则回退到 npm
+        if command -v pnpm &> /dev/null; then
+          pnpm install
+        else
+          npm install
+        fi
+        # 执行构建命令（假设 package.json 中定义了 build 脚本）
+        npm run build
+
+    - name: Debug - Show build output
+      run: ls -la vue-blog-project/dist  # 确认构建产物存在
 
     - name: Setup SSH Environment
       run: |
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        # 注入 SSH 私钥 (必须为 OpenSSH 格式，无多余换行符)
         echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
         chmod 600 ~/.ssh/github_actions_key
-        # 添加服务器指纹到 known_hosts (避免首次连接确认)
         ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
     - name: Install Rsync
-      run: sudo apt-get update && sudo apt-get install -y rsync  # 确保 Runner 有 rsync 工具
+      run: sudo apt-get update && sudo apt-get install -y rsync
 
-    - name: Sync Files via Rsync
+    - name: Sync Build Files via Rsync
       run: |
         rsync -avz --progress --delete \
+          --exclude='node_modules' \         # 排除 node_modules
+          --exclude='.git' \                 # 可选：排除 git 目录
           -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-          $GITHUB_WORKSPACE/ \
+          vue-blog-project/dist/ \           # 同步构建后的 dist 目录
           ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
