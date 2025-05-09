@@ -20,4 +20,7 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SSH_PORT }}
         script: |
-          rsync -avz --delete -e "ssh -i $HOME/.ssh/github_actions_key" ./ ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default
+          # 清理残留文件（可选）
+          rm -rf $GITHUB_WORKSPACE/.ssh
+          # 同步仓库所有文件
+          rsync -avz --delete -e "ssh -i $HOME/.ssh/github_actions_key" $GITHUB_WORKSPACE/ ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default
