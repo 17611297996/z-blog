@@ -1,4 +1,4 @@
-name: 全栈部署（修复 pnpm 路径问题）
+name: 全栈部署（pnpm 修复终极版）
 
 on:
   push:
@@ -7,73 +7,80 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PNPM_VERSION: "8.15.6"  # 明确指定版本
 
     steps:
-    # ███████ 初始化代码仓库 ███████████████████
+    # ███████ 第一阶段：环境初始化 ████████████████
     - name: 检出代码
       uses: actions/checkout@v4
 
-    # ███████ Node.js 环境配置 █████████████████
-    - name: 安装 Node.js 20
+    # ███████ 第二阶段：强制重置 Node.js 环境 ███████
+    - name: 清除 Node.js 残留
+      run: |
+        sudo rm -rf /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
+        sudo rm -rf /opt/hostedtoolcache/node_modules/.pnpm 2>/dev/null || true
+
+    - name: 安装 Node.js 20 (LTS)
       uses: actions/setup-node@v3
       with:
         node-version: 20.x
         cache: 'pnpm'
         cache-dependency-path: '**/pnpm-lock.yaml'
 
-    # ███████ 核武器级 pnpm 修复 ███████████████
-    - name: 彻底重置 pnpm 环境
+    # ███████ 第三阶段：精确安装 pnpm █████████████
+    - name: 安装 pnpm (官方推荐方式)
       run: |
-        # 清除旧版本残留
-        sudo rm -f /usr/local/bin/pnpm /usr/local/bin/pnpx 2>/dev/null || true
-        # 强制刷新 Corepack
-        corepack disable && corepack enable
-        # 激活最新 pnpm 并指定安装路径
-        corepack prepare pnpm@latest --activate --install-directory=/usr/local/bin
-
-    - name: 双重安装保障
-      run: |
-        # 方式1: 通过 Corepack 安装
-        corepack prepare pnpm@8 --activate
-        # 方式2: 通过 npm 全局安装（国内镜像加速）
-        npm install -g pnpm@8 --registry=https://registry.npmmirror.com
-        # 显式添加全局路径到 PATH
-        echo "全局 bin 路径: $(npm root -g)/bin" >> $GITHUB_PATH
-        # 验证路径
-        ls -l $(npm root -g)/bin/pnpm
-
-    # ███████ 环境验证 ███████████████████████
-    - name: 系统级环境验证
-      run: |
-        echo "### PATH 变量分解 ###"
-        echo "$PATH" | tr ':' '\n'
-        echo "### pnpm 可执行文件位置 ###"
-        which pnpm
-        echo "### 文件权限检查 ###"
+        # 强制激活 Corepack
+        sudo corepack enable --install-directory=/usr/local/bin
+        # 精确安装指定版本
+        sudo corepack prepare pnpm@${PNPM_VERSION} --activate
+        # 验证安装结果
+        echo "pnpm 路径: $(which pnpm)"
         ls -l $(which pnpm)
-        echo "### 版本验证 ###"
+        chmod +x $(which pnpm)  # 确保可执行权限
+
+    - name: 双重路径保障
+      run: |
+        # 获取 npm 全局安装路径
+        NPM_GLOBAL_BIN="$(npm root -g)/bin"
+        # 写入 GitHub Actions 路径
+        echo "$NPM_GLOBAL_BIN" >> $GITHUB_PATH
+        # 手动构建符号链接
+        sudo ln -sf "$NPM_GLOBAL_BIN/pnpm" /usr/local/bin/pnpm
+        # 最终验证
+        echo "最终路径检查:"
+        which pnpm
+
+    # ███████ 第四阶段：环境深度验证 █████████████
+    - name: 系统级诊断
+      run: |
+        echo "===== 关键诊断信息 ====="
+        echo "PATH 分解:"
+        echo "$PATH" | tr ':' '\n'
+        echo "pnpm 物理路径:"
+        realpath $(which pnpm)
+        echo "文件权限:"
+        ls -l $(which pnpm)
+        echo "版本信息:"
         pnpm -v
 
-    # ███████ 前端项目构建 ███████████████████
-    - name: 安装依赖
+    # ███████ 第五阶段：示例前端构建 █████████████
+    - name: 安装前端依赖
       working-directory: ./vue-blog-project
-      run: pnpm install --frozen-lockfile
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm store path  # 显示存储路径
 
-    - name: 构建生产包
+    - name: 执行构建
       working-directory: ./vue-blog-project
       run: pnpm build
 
-    # ███████ 部署到服务器 ███████████████████
-    - name: 配置 SSH 连接
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
-
+    # ███████ 第六阶段：部署 ███████████████████
     - name: 同步构建产物
       run: |
-        rsync -avz --progress --delete \
-          -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }}" \
+        rsync -avz --delete \
+          --exclude='node_modules/' \
+          --exclude='.git/' \
           ./vue-blog-project/dist/ \
-          ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
+          ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/www/wwwroot/
