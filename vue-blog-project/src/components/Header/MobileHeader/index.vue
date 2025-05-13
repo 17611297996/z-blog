@@ -12,7 +12,7 @@
     <div class="user">
       <img :src="userImg" />
     </div>
-    <div class="right"></div>
+    <!-- <div class="right"></div> -->
     <SlideNavBar ref="slideNavBarRef" />
   </div>
 </template>
@@ -55,7 +55,8 @@ onUnmounted(() => {
 .navigation-menu {
   position: fixed;
   top: 0;
-  width: 100%;
+  left: 0;
+  width: 100vw;
   z-index: 10;
   display: flex;
   justify-content: space-between;

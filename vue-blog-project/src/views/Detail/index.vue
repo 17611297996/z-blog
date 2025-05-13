@@ -59,7 +59,9 @@ onMounted(async () => {
   width: 100vw;
   height: 100%;
 }
-
+#preview-only {
+  overflow: hidden !important;
+}
 .banner-container {
   width: 100%;
   position: relative;
