@@ -12,28 +12,45 @@ jobs:
             - name: 检出代码
               uses: actions/checkout@v4
 
-            - name: 设置SSH环境
+            - name: 调试-列出仓库文件
+              run: ls -la $GITHUB_WORKSPACE
+
+            - name: 配置SSH环境
               run: |
                   mkdir -p ~/.ssh
                   chmod 700 ~/.ssh
-                  # 注入SSH私钥并确保格式正确
                   echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
                   chmod 600 ~/.ssh/github_actions_key
-                  # 添加服务器指纹（生产环境建议使用固定指纹）
                   ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-            - name: 同步文件到服务器
+            - name: 安装Rsync工具
+              run: sudo apt-get update && sudo apt-get install -y rsync
+
+            - name: 构建项目（适配pnpm/npm）
+              working-directory: vue-blog-project
+              run: |
+                  npm install -g pnpm
+                  pnpm install
+                  rm -rf node_modules/.vite
+                  pnpm run build
+
+            - name: 调试-显示构建产物
+              run: ls -la vue-blog-project/dist
+
+            - name: 设置服务器同步参数
+              run: |
+                  mkdir -p ~/.ssh
+                  chmod 700 ~/.ssh
+                  echo "${{ secrets.SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/github_actions_key
+                  chmod 600 ~/.ssh/github_actions_key
+                  ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+            - name: 同步构建文件到服务器
               run: |
                   rsync -avz --progress --delete \
+                    --exclude='node_modules' \
                     --exclude='.git' \
-                    --exclude='node_modules/' \
-                    --exclude='*.log' \
-                    --exclude='.github/workflows/' \
+                    --exclude='.DS_Store' \
                     -e "ssh -i ~/.ssh/github_actions_key -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-                    $GITHUB_WORKSPACE/ \
-                    ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/egg-blog/
-
-            - name: 验证部署结果
-              run: |
-                  ssh -i ~/.ssh/github_actions_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }} \
-                    "cd /www/wwwroot/egg-blog && git rev-parse HEAD && ls -l"
+                    ./vue-blog-project/dist/ \
+                    ${{ secrets.SSH_USERNAME }}@${{ secrets.SERVER_IP }}:/www/wwwroot/default/
