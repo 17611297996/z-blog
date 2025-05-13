@@ -59,8 +59,8 @@ onMounted(async () => {
   width: 100vw;
   height: 100%;
 }
-.md-editor-preview-wrapper {
-  overflow: !important;
+::v-deep(.md-editor-preview-wrapper) {
+  overflow: hidden;
 }
 #preview-only {
   overflow: hidden !important;
