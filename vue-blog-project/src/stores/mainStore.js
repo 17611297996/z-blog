@@ -24,7 +24,7 @@ export const useMainStore = defineStore('mainStore', () => {
     }
     async function getDetail() {
         console.log(route.query, 'query')
-        let res = await http("GET /api/markdown-content/vue3学习测试文章.md", route.query);
+        let res = await http(`GET /api/markdown-content/${route.query.file}`, route.query);
         markdownHtml.value = res.content
         console.log(res, 'res')
     }

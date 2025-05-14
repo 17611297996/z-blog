@@ -23,7 +23,12 @@
             </div>
           </div>
         </div>
-        <MdPreview :id="id" :modelValue="markdownHtml" @onGetCatalog="onGetCatalog" />
+        <MdPreview
+          :id="id"
+          :modelValue="markdownHtml"
+          @onGetCatalog="onGetCatalog"
+          codeTheme="atom"
+        />
       </div>
     </div>
   </div>
@@ -57,7 +62,6 @@ onMounted(async () => {
 <style lang="less" scoped>
 .detail-container {
   width: 100vw;
-  height: 100%;
 }
 ::v-deep(.md-editor-preview-wrapper) {
   overflow: hidden;
