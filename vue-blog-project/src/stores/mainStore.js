@@ -9,6 +9,7 @@ export const useMainStore = defineStore('mainStore', () => {
     const listData = ref([]);
     const dripData = ref([])
     const basicInfo = ref({}) //基础信息，存放技术点滴与用户名称，需要可在服务端在添加加
+    const category = ref([])
     const markdownHtml = ref('')
     async function getList() {
         let res = await http(api.getList, route.query);
@@ -24,11 +25,17 @@ export const useMainStore = defineStore('mainStore', () => {
     }
     async function getDetail() {
         console.log(route.query, 'query')
-        let res = await http(`GET /api/markdown-content/${route.query.file}`, route.query);
+        let res = await http(`GET /api/markdown-content/${route.query.file}`);
         markdownHtml.value = res.content
+        console.log(res, 'res')
+    }
+    async function getCategory() {
+
+        let res = await http(api.getCategory);
+        category.value = res.data
         console.log(res, 'res')
     }
 
 
-    return { listData, getList, dripData, getBasicInfo, basicInfo, getDetail, markdownHtml }
+    return { listData, getList, dripData, getBasicInfo, basicInfo, getDetail, markdownHtml, getCategory, category }
 })

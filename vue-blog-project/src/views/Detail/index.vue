@@ -55,7 +55,7 @@ const text = ref()
 const scrollElement = document.documentElement
 
 onMounted(async () => {
-  await store.getDetail('vue3学习测试文章.md')
+  // await store.getDetail()
 })
 </script>
 

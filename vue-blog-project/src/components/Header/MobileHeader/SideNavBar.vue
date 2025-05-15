@@ -18,8 +18,13 @@
               <div class="menu-dot"></div>
               <span>技术点滴</span>
             </li>
-            <li class="item-tag" v-for="(item, index) in dripData" :key="index">
-              {{ item.title }}
+            <li
+              class="item-tag"
+              v-for="(item, index) in category"
+              :key="index"
+              @click="handleTag(item)"
+            >
+              {{ item }}
             </li>
             <!-- <li class="item-tag">服务端</li> -->
           </ul>
@@ -36,16 +41,32 @@
 import { ref, defineExpose, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMainStore } from '@store/mainStore.js'
+import { useRouter } from 'vue-router'
+const router = useRouter()
 const store = useMainStore()
-const { dripData } = storeToRefs(store)
+const { dripData, category } = storeToRefs(store)
 const show = ref(false)
 const handleClick = (showValue) => {
   show.value = showValue ? showValue : false
 }
 onMounted(async () => {
+  await store.getCategory()
   await store.getBasicInfo()
   console.log(dripData.value, 'dripData')
 })
+const handleTag = (item) => {
+  window.location.reload()
+  router
+    .push({
+      path: '/home',
+      query: {
+        tag: item,
+      },
+    })
+    .then((res) => {
+      window.location.reload()
+    })
+}
 defineExpose({
   handleShowMenu: handleClick,
 })
@@ -113,11 +134,12 @@ defineExpose({
 .item-tag {
   background: rgba(198, 174, 174, 0.06);
   color: #eee;
-  padding: 4px 14px;
+  padding: 4px 12px;
   font-size: 16px;
   border-radius: 4px;
   margin-bottom: 5px;
   margin-left: 5%;
+  margin-left: 30px;
 }
 .submenu-item {
   padding: 5px 0;

@@ -18,7 +18,6 @@
               <img src="@assets/images/avatar-default.png" />
               <span class="name">{{ basicInfo.userName }}</span>
             </div>
-            <div class="time">{{ moment(item.date).format('YYYY-MM-DD HH:mm') }}</div>
           </div>
         </div>
       </div>
@@ -122,11 +121,12 @@ onMounted(async () => {
   }
 }
 .right {
-  width: calc(100% - 200px);
-  margin-left: 2%;
+  flex: 1;
+  overflow: hidden;
+  margin-left: 3%;
 }
 .img-container {
-  width: 190px;
+  width: 160px;
   height: 133px;
   border-radius: 10px;
   img {
