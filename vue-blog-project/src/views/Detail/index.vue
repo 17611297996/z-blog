@@ -55,7 +55,7 @@ const text = ref()
 const scrollElement = document.documentElement
 
 onMounted(async () => {
-  // await store.getDetail()
+  await store.getDetail()
 })
 </script>
 
