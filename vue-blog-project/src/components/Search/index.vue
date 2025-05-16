@@ -39,6 +39,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { isMobile } from '@utils/index.js'
 const router = useRouter()
 const tags = ['微信', 'react', '小程序', '前端', '性能监控']
 const props = defineProps({
@@ -69,12 +70,11 @@ const focusInput = () => {
 const handleSearch = () => {
   // 这里添加搜索逻辑
   console.log('执行搜索:', inputValue.value)
+  const queryParams = {}
   router
     .push({
-      path: '/home',
-      query: {
-        name: inputValue.value,
-      },
+      path: isMobile() ? '/home' : '/',
+      query: inputValue.value ? { name: inputValue.value } : {},
     })
     .then((res) => {
       window.location.reload()

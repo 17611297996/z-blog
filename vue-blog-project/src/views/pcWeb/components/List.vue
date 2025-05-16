@@ -6,7 +6,7 @@
       </div>
       <div class="right">
         <div class="content">
-          <p @click="handleDetail(item.title)">{{ item.title }}</p>
+          <p @click="handleDetail(item.filename)">{{ item.title }}</p>
           <p>{{ item.description }}</p>
           <div class="tag">
             <span>{{ item.tags[0] }}</span>

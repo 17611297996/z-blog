@@ -18,6 +18,7 @@
               <img src="@assets/images/avatar-default.png" />
               <span class="name">{{ basicInfo.userName }}</span>
             </div>
+            <div class="time">{{ moment(item.date).format('YYYY-MM-DD') }}</div>
           </div>
         </div>
       </div>

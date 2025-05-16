@@ -40,6 +40,20 @@ const store = useMainStore()
 const { dripData, listData } = storeToRefs(store)
 const headerRef = ref(null)
 const headerBgColor = ref(null)
+import { useRouter } from 'vue-router'
+const router = useRouter()
+const handleTag = (value) => {
+  router
+    .push({
+      path: '/',
+      query: {
+        tag: value,
+      },
+    })
+    .then(() => {
+      window.location.reload()
+    })
+}
 onMounted(async () => {
   window.addEventListener('scroll', handleScroll)
   await store.getBasicInfo()
