@@ -2,7 +2,7 @@
   <div class="list-container">
     <div class="item" v-for="(item, index) in listData" :key="index">
       <div class="img-container">
-        <img :src="itemImg" />
+        <img v-lazy="itemImg" />
       </div>
       <div class="right">
         <div class="content">
