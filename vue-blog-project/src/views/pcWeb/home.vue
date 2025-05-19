@@ -53,7 +53,7 @@
     </div>
     <div class="list">
       <div class="list-header">
-        <img :src="Lilia" alt="Lilia" />
+        <img v-lazy="Lilia" alt="Lilia" />
         <div class="folder-item">
           <div class="folder-icon">
             <i class="folder-icon-placeholder" v-if="tag"><FolderOpened /></i>
@@ -330,7 +330,7 @@ img {
 .list-header {
   width: 60%;
   height: 256px;
-  background: red;
+  // background: red;
   margin-top: 20px;
   border-radius: 10px;
   position: relative;

@@ -265,7 +265,7 @@ img {
 .list-header {
   width: 60%;
   height: 256px;
-  background: red;
+  // background: red;
   margin-top: 20px;
   border-radius: 10px;
   position: relative;
