@@ -23,7 +23,12 @@
             </div>
           </div>
         </div>
+        <div class="loading" v-if="!markdownHtml">
+          {{ console.log(markdownHtml, '====') }}
+          <img :src="loading" />
+        </div>
         <MdPreview
+          v-else
           :id="id"
           :modelValue="markdownHtml"
           @onGetCatalog="onGetCatalog"
@@ -47,6 +52,7 @@ import Lilia from '@assets/images/Lilia.webp'
 import MobileWeb from '@components/Header/MobileHeader/index.vue'
 import PCHeader from '@components/Header/PCHeader/index.vue'
 import { isMobile } from '@utils/index.js'
+import loading from '@assets/images/detailLoading.gif'
 const store = useMainStore()
 const { markdownHtml } = storeToRefs(store)
 const route = useRoute()

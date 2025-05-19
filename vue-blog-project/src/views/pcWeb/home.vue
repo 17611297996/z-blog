@@ -83,6 +83,7 @@ import { storeToRefs } from 'pinia'
 import { useMainStore } from '@store/mainStore.js'
 import Lilia from '@assets/images/Lilia.webp'
 import { FolderOpened } from '@element-plus/icons-vue'
+import NoData from '@components/NoData/index.vue'
 const store = useMainStore()
 const router = useRouter()
 const { dripData, listData } = storeToRefs(store)
