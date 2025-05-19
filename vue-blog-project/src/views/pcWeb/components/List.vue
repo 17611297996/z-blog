@@ -38,6 +38,7 @@ onMounted(async () => {
   await store.getList()
 })
 const handleDetail = (value) => {
+  store.clearMarkdownHtml() //清空详情值
   router
     .push({
       path: '/detail',

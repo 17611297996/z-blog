@@ -37,6 +37,7 @@ const router = useRouter()
 const store = useMainStore()
 const { listData, basicInfo } = storeToRefs(store)
 const handleDetail = (value) => {
+  store.clearMarkdownHtml() //清空详情值
   router
     .push({
       path: '/detail',
