@@ -9,7 +9,7 @@
     <div class="detail-content">
       <div class="content">
         <div class="list-header">
-          <img :src="Lilia" alt="Lilia" />
+          <img v-lazy="Lilia" alt="Lilia" />
           <div class="folder-item">
             <div class="folder-icon">
               <i class="folder-icon-placeholder" v-if="tag"><FolderOpened /></i>
