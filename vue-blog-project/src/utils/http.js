@@ -4,7 +4,7 @@ import axios from 'axios';
 // 创建 axios 实例
 const instance = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL, // 后端 API 的基础 URL
-    timeout: 5000, // 请求超时时间 (毫秒)
+    timeout: 8000, // 请求超时时间 (毫秒)
 });
 
 // 请求拦截器
