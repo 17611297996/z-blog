@@ -47,7 +47,7 @@ const handleDetail = (value) => {
       },
     })
     .then(() => {
-      window.location.reload()
+      // window.location.reload()
     })
 }
 </script>
