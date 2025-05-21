@@ -11,7 +11,7 @@
         <ul class="menu-list">
           <li class="menu-item">
             <div class="menu-dot"></div>
-            <span>首页</span>
+            <span @click="handleHome">首页</span>
           </li>
           <ul>
             <li class="menu-item active">
@@ -48,6 +48,16 @@ const { dripData, category } = storeToRefs(store)
 const show = ref(false)
 const handleClick = (showValue) => {
   show.value = showValue ? showValue : false
+}
+const handleHome = () => {
+  window.location.reload()
+  router
+    .push({
+      path: '/home',
+    })
+    .then((res) => {
+      window.location.reload()
+    })
 }
 onMounted(async () => {
   await store.getCategory()

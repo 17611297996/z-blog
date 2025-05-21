@@ -54,6 +54,15 @@ const handleTag = (value) => {
       window.location.reload()
     })
 }
+const handleHome = () => {
+  router
+    .push({
+      path: '/',
+    })
+    .then(() => {
+      window.location.reload()
+    })
+}
 onMounted(async () => {
   window.addEventListener('scroll', handleScroll)
   await store.getBasicInfo()
